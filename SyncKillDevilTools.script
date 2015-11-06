@@ -1,0 +1,3 @@
+#!/bin/tcsh
+rsync -r -a -v -z -e ssh  fbudin@killdevil.unc.edu:/nas02/home/f/b/fbudin/ms/tools fbudin@killdevil.unc.edu:/lustre/scr/f/b/fbudin/
+

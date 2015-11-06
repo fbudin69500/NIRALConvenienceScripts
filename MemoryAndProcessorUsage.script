@@ -1,0 +1,102 @@
+#!/bin/bash
+#if no arguments given, print how to use script and exit
+if [ $# -lt 2 ]
+then
+	echo 'Usage: $0 outputFile command [argument1] [argument2] ... [argumentN]'
+	exit
+fi
+if [ -f $1 ]
+then
+  rm $1
+fi
+commandToStart=""
+counter=0
+for var in $@
+do
+  if [ $counter -ge 1 ]
+  then
+    commandToStart=$commandToStart" "$var
+  fi
+  counter=$(( $counter + 1 ))
+done
+echo "Current directory: "`pwd`>>$1
+echo "Command: "$commandToStart>>$1
+echo "Mem(K):     %Proc">>$1 # $memory has to be a string of 12 characters to have processor% values aligned when printed in output file
+before="$(date +%s)"
+$commandToStart &
+man=${2##*/}
+man=${man:0:10}
+sleep 1
+args=`ps -A | grep $man`
+nbprocess=`ps -A | grep $man | wc -l`
+nbprocess=(${nbprocess})
+pid=(${args})
+#if process running multiple times, find which one was started last
+if [ $nbprocess -gt 1 ]
+then
+  args=`ps -A | grep $man | gawk -F " " '{print $3}'`
+  time=(${args})
+  minitime=10000
+  for((i=0;i<$nbprocess;i++))
+  do
+#    echo ${time[$i]}
+    hours=${time[$i]%%:*}
+    hours=(${hours})
+    time[$i]=${time[$i]#$hours":"}
+    minutes=${time[$i]%%:*}
+    minutes=(${minutes})
+    seconds=${time[$i]#$minutes":"}
+    seconds=(${seconds})
+#    echo "hours: "$hours
+#    echo "minutes: "$minutes
+#    echo "seconds: "$seconds
+    totaltime=`echo $hours 3600+$minutes 60+$seconds |  sed 's/ /*/g'  | bc`
+#    echo $totaltime
+    if [ $totaltime -le $minitime ]
+    then
+      minitime=$totaltime
+      args=`ps -A | grep $man | gawk -F " " '{print $1}'`
+      pidarray=(${args})
+      pid=${pidarray[$i]}
+    fi
+  done
+fi
+echo "PID: "$pid "(if you stop the script manually, the process continues to run. To stop it: kill PID)"
+#while process is running, check memory and processor that the process is using
+while [ -n "$pid" ]
+do
+  #memory
+  memory=`pmap $pid | grep total`
+  memory=${memory%K}
+  memory=`echo $memory`
+  memory=${memory#total }
+  #depending on PID size, there might be spaces before it. We cannot strip those spaces easily, so we check if the columns are what we expect. $1 is either a space or the PID $2 is PID (therefore a number) if there is a space, $2 is the owner (therefore not a space) of the process if there is no space
+  isSpace=`top -n 1 -p $pid | grep $man | gawk -F " " '{print $2}'`
+  if [ $isSpace -eq $isSpace 2> /dev/null ]; then
+    isSpace=1
+  else
+    isSpace=0
+  fi 
+  #processor
+  #processor % is $9 if no space, $10 otherwise
+  proc=`top -n 1 -p $pid | grep $man | gawk -F " " -v space=$isSpace '{if(space==0) print $9;else print $10}'`
+  length=$((12-${#memory}))
+#  padding=""
+#  for((i=0;i<$length;i++))
+#  do
+#    padding=$padding" "
+#  done
+#  echo $length
+  awk -v len=$length -v mem=$memory -v proc=$proc -v output=$1 'BEGIN{for(i=0;i<len;i++){pad=pad" "};print mem pad proc >> output }'
+#  print=`echo "$memory$padding$proc" | sed 's/-/ /g'`
+#  echo $print
+#  echo $print>>$1
+  sleep 1
+  #checks if the process still exists
+  args=`ps -A | grep $pid | grep $man `
+  pid=(${args})
+done
+after="$(date +%s)"
+elapsed_seconds=$(($after - $before))
+#echo Elapsed time: $(date -r $elapsed_seconds +%H:%M:%S)
+echo "Elapsed time: "$elapsed_seconds "seconds"

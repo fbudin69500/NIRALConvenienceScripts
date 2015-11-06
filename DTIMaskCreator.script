@@ -1,0 +1,111 @@
+#!/bin/bash
+#Check arguments
+#look for the 
+#Reead arguments
+if [ $# -lt 3 ]
+then
+	echo 'Usage: $0 inputDTI outputMask [MD|FA] -t min [-c dilate|erode radius]'
+        echo '-i: Image the mask is computed from [MD|FA]'
+	echo '-t: Do a threshold or not. If selected, give a min'
+	echo '-c: Do an erosion [e] or a dilation [d] and select the radius'
+	exit
+fi
+#Compute MD or FA
+inputDTI=$1
+outputMask=$2
+type=$3
+count=1
+for i in $@
+do
+  if [ $count -gt 3 ]
+  then
+#  echo $i
+    list[$(($count-4))]=$i
+  fi
+  ((count++))
+done
+cfound=0
+tfound=0
+for(( i = 0 ; i < ${#list[@]} ; i++ ))
+do
+# echo ${list[$i]}
+  if [ "${list[$i]}" == '-t' ] && [ $tfound -eq 0 ]
+  then
+    if [ $i -lt $((${#list[@]}-1)) ]
+    then
+      ((i++))
+      min="${list[$i]}"
+      ((tfound++))
+    else
+      echo "-t needs 1 argument: -t min"
+      exit
+    fi
+  fi
+  if [ "${list[$i]}" == '-c' ] && [ $cfound -eq 0 ]
+  then
+    if [ $i -lt $((${#list[@]}-2)) ]
+    then
+      ((cfound++))
+      ((i++))
+      if [ "${list[$i]}" == 'erode' ]
+      then
+        change='erode'
+      elif [ "${list[$i]}" == 'dilate' ]
+      then
+        change='dilate'
+      else
+        echo "argument after -c must be either erode or dilate"
+        exit
+      fi
+    else
+      echo "-c needs 2 arguments: [-c dilate|erode radius]"
+      exit
+    fi
+    ((i++))
+    radius="${list[$i]}"
+  fi
+done
+if [ $tfound -eq 1 ]
+then
+  if [ ! -n $min ]
+  then
+    echo "min is not set"
+    exit
+  fi
+else
+  min="0.1"
+fi
+if [ $cfound ]
+then
+  if [ ! -n $radius ]
+  then
+    echo "radius is not set"
+    exit
+  fi
+fi
+#type: MD or FA
+if [ "$type" == 'FA' ]
+then
+  echo "dtiprocess --dti_image $inputDTI -f $outputMask --scalar-float"
+  dtiprocess --dti_image $inputDTI -f $outputMask --scalar-float
+elif [ "$type" == 'MD' ]
+then
+  echo "dtiprocess --dti_image $inputDTI -m $outputMask --scalar-float"
+  dtiprocess --dti_image $inputDTI -m $outputMask --scalar-float
+else
+  echo "Mask is computed either from MD or FA"
+  exit
+fi
+#threshold
+echo "ImageMath $outputMask -threshold $min,1.1 -outfile $outputMask"
+  ImageMath $outputMask -threshold $min,1.1 -outfile $outputMask
+#erode/dilate
+if [ "$change" == 'erode' ]
+then
+  echo "ImageMath $outputMask -erode $radius,1 -outfile $outputMask"
+  ImageMath $outputMask -erode $radius,1 -outfile $outputMask
+elif [ "$change" == 'dilate' ]
+then
+  echo "ImageMath $outputMask -dilate $radius,1 -outfile $outputMask"
+  ImageMath $outputMask -dilate $radius,1 -outfile $outputMask
+fi

@@ -1,0 +1,42 @@
+#!/bin/tcsh
+echo "Do not interrupt this process! It will corrupt the files you are compressing"
+echo "Does not handle filenames with spaces"
+foreach i (`find . -type f`)
+  #to remove Mac temp files from being looked into
+  set macfiles=`echo $i | grep '\._'`
+  if( $macfiles != "" ) then
+    echo "skipping file: $macfiles"
+    continue
+  endif
+  #############
+  set var=$i:e
+  if( $var == "nrrd" ) then
+    set j=(`unu head $i | grep encoding`)
+    if( $j[2] == "raw" ) then
+      echo $i
+      unu save -i $i -e gzip -f nrrd -o $i
+    endif
+  endif
+#Removed until completly debugged. So far, it does not handle multiple files in "data file:" and not sure how it handles "gipl.gz" extension either
+  if( $var == "nhdr" ) then
+    set j=(`unu head $i | grep encoding`)
+    if( $j[2] == "raw" ) then
+      if( $# >= 1 && $1 == 'nhdr') then
+        echo $i
+        set dir=$i:h
+        echo $dir
+        set k=(`unu head $i | grep "data file:"`)
+        echo $k
+        gzip $dir/$k[3]
+        sed -i "s/data file:.*/data file: $k[3].gz/" $i
+        sed -i 's/encoding:.*/encoding: gzip/' $i
+      else
+        echo "$i :This file is not compressed. This extension (.nhdr) is not handled properly. Please compress this file manually"
+      endif
+    endif
+  endif
+  if( $var == "gipl" || $var == "nii" ) then
+    echo $i
+    gzip $i
+  endif
+end
