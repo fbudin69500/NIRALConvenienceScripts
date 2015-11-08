@@ -1,0 +1,6 @@
+#!/bin/bash
+before="$(date +%s)"
+after="$(date +%s)"
+elapsed_seconds=$(($after - $before))
+#tim=$(date -r $elapsed_seconds +%H:%M:%S)
+echo Elapsed time: $elapsed_seconds
